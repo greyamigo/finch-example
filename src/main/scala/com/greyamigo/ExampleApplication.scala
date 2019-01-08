@@ -6,13 +6,13 @@ import com.greyamigo.models.Message
 import com.greyamigo.services.ExampleService
 import com.twitter.app.Flag
 import com.twitter.finagle.Http
+import com.twitter.finagle.http.exp.Multipart.{FileUpload, InMemoryFileUpload}
+import com.twitter.io.{Buf, Bufs, Reader}
 import com.twitter.server.TwitterServer
 import com.twitter.util.Await
 import io.circe.generic.auto._
-import io.finch.{Endpoint, _}
 import io.finch.circe._
-import com.twitter.finagle.http.exp.Multipart.{FileUpload, InMemoryFileUpload, OnDiskFileUpload, _}
-import com.twitter.io.{Buf, Bufs}
+import io.finch.{Application, Endpoint, _}
 
 
 object ExampleApplication extends TwitterServer {
@@ -26,24 +26,30 @@ object ExampleApplication extends TwitterServer {
 
   def acceptedMessage: Endpoint[Message] = jsonBody[Message]
 
+
   def accept: Endpoint[Message] = post("accept" :: acceptedMessage) { incomingMessage: Message =>
     exampleService.acceptMessage(incomingMessage).map(Ok)
   }
 
-  def acceptFile : Endpoint[Message] = post("acceptfile" :: fileUpload("filethatihave")) {
+  def acceptFile : Endpoint[Message] = post("acceptfile" :: fileUpload("file")) {
     upload:FileUpload => {
       exampleService.acceptMessage(Message(upload.fileName ++ "::" ++ upload.contentTransferEncoding ++ "::" ++ upload.contentType)).map(Ok)
     }
   }
-  def acceptFileMemmory : Endpoint[Message] = post("acceptfilem" :: fileUpload("anotheroneihave")){
+  def acceptFileMemmory : Endpoint[Message] = post("acceptfilem" :: fileUpload("file")){
     x:FileUpload => {
 
       exampleService.acceptMessage(Message(Bufs.asUtf8String(x.asInstanceOf[InMemoryFileUpload].content))).map(Ok)
     }
   }
 
+  def getAFileBack : Endpoint[Buf] = get("getafileback" :: param("path")){
+    path:String =>
+      val reader: Reader = Reader.fromFile(new File(path))
+      Reader.readAll(reader).map(Ok)
+  }
 
-  val api = (hello :+: accept :+: acceptFile:+:acceptFileMemmory).handle {
+  val api = (hello :+: accept :+: acceptFile:+: acceptFileMemmory :+: getAFileBack).handle {
     case e: Exception => {e.printStackTrace() ; InternalServerError(e)}
   }
 
