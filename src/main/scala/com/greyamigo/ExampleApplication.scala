@@ -13,6 +13,7 @@ import com.twitter.util.Await
 import io.circe.generic.auto._
 import io.finch.circe._
 import io.finch.{Application, Endpoint, _}
+import shapeless.Witness
 
 
 object ExampleApplication extends TwitterServer {
@@ -53,13 +54,30 @@ object ExampleApplication extends TwitterServer {
     case e: Exception => {e.printStackTrace() ; InternalServerError(e)}
   }
 
+  val fileapi = getAFileBack.handle({
+    case e: Exception => {e.printStackTrace() ; InternalServerError(e)}
+
+  })
+  type Zip = Witness.`"application/zip"`.T
+
+
+
   def main(): Unit = {
     log.info(s"Serving the application on port ${port()}")
+
+    // AS json responses
+
+//    val server =
+//      Http.server
+//        .withStatsReceiver(statsReceiver)
+//        .serve(s":${port()}", api.toServiceAs[Application.Json])
+
+    // As zip file response
 
     val server =
       Http.server
         .withStatsReceiver(statsReceiver)
-        .serve(s":${port()}", api.toServiceAs[Application.Json])
+        .serve(s":${port()}", fileapi.toServiceAs[Zip])
     closeOnExit(server)
 
     Await.ready(adminHttpServer)
