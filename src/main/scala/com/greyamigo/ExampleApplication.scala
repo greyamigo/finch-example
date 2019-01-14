@@ -50,7 +50,14 @@ object ExampleApplication extends TwitterServer {
       Reader.readAll(reader).map(Ok)
   }
 
-  val api = (hello :+: accept :+: acceptFile:+: acceptFileMemmory :+: getAFileBack).handle {
+
+  val headersAll = root.map(_.headerMap.toMap)
+
+  def headers = get("helloheaders" :: headersAll) {headers: Map[String, String] =>
+    Ok(s"Headers: $headers")
+  }
+
+  val api = (hello :+: accept :+: acceptFile:+: acceptFileMemmory :+: getAFileBack :+: headers).handle {
     case e: Exception => {e.printStackTrace() ; InternalServerError(e)}
   }
 
@@ -65,20 +72,28 @@ object ExampleApplication extends TwitterServer {
   def main(): Unit = {
     log.info(s"Serving the application on port ${port()}")
 
+
+    val x = api.toServiceAs[Application.Json]
+
+
+
     // AS json responses
-
-//    val server =
-//      Http.server
-//        .withStatsReceiver(statsReceiver)
-//        .serve(s":${port()}", api.toServiceAs[Application.Json])
-
-    // As zip file response
 
     val server =
       Http.server
         .withStatsReceiver(statsReceiver)
-        .serve(s":${port()}", fileapi.toServiceAs[Zip])
-    closeOnExit(server)
+        .serve(s":${port()}", api.toServiceAs[Application.Json])
+
+
+    // As zip file response
+
+//    val server1 =
+//      Http.server
+//        .withStatsReceiver(statsReceiver)
+//        .serve(s":${port()}", fileapi.toServiceAs[Zip])
+//    closeOnExit(server)
+//
+//    closeOnExit(server1)
 
     Await.ready(adminHttpServer)
   }
