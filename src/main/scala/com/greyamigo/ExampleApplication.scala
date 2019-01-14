@@ -32,20 +32,20 @@ object ExampleApplication extends TwitterServer {
     exampleService.acceptMessage(incomingMessage).map(Ok)
   }
 
-  def acceptFile : Endpoint[Message] = post("acceptfile" :: fileUpload("file")) {
-    upload:FileUpload => {
+  def acceptFile: Endpoint[Message] = post("acceptfile" :: fileUpload("file")) {
+    upload: FileUpload => {
       exampleService.acceptMessage(Message(upload.fileName ++ "::" ++ upload.contentTransferEncoding ++ "::" ++ upload.contentType)).map(Ok)
     }
   }
-  def acceptFileMemmory : Endpoint[Message] = post("acceptfilem" :: fileUpload("file")){
-    x:FileUpload => {
 
+  def acceptFileMemmory: Endpoint[Message] = post("acceptfilem" :: fileUpload("file")) {
+    x: FileUpload => {
       exampleService.acceptMessage(Message(Bufs.asUtf8String(x.asInstanceOf[InMemoryFileUpload].content))).map(Ok)
     }
   }
 
-  def getAFileBack : Endpoint[Buf] = get("getafileback" :: param("path")){
-    path:String =>
+  def getAFileBack: Endpoint[Buf] = get("getafileback" :: param("path")) {
+    path: String =>
       val reader: Reader = Reader.fromFile(new File(path))
       Reader.readAll(reader).map(Ok)
   }
@@ -53,47 +53,38 @@ object ExampleApplication extends TwitterServer {
 
   val headersAll = root.map(_.headerMap.toMap)
 
-  def headers = get("helloheaders" :: headersAll) {headers: Map[String, String] =>
+  def headers = get("helloheaders" :: headersAll) { headers: Map[String, String] =>
     Ok(s"Headers: $headers")
   }
 
-  val api = (hello :+: accept :+: acceptFile:+: acceptFileMemmory :+: getAFileBack :+: headers).handle {
-    case e: Exception => {e.printStackTrace() ; InternalServerError(e)}
+  val api = (hello :+: accept :+: acceptFile :+: acceptFileMemmory :+: headers).handle {
+    case e: Exception => {
+      e.printStackTrace(); InternalServerError(e)
+    }
   }
 
   val fileapi = getAFileBack.handle({
-    case e: Exception => {e.printStackTrace() ; InternalServerError(e)}
+    case e: Exception => {
+      e.printStackTrace(); InternalServerError(e)
+    }
 
   })
   type Zip = Witness.`"application/zip"`.T
-
 
 
   def main(): Unit = {
     log.info(s"Serving the application on port ${port()}")
 
 
-    val x = api.toServiceAs[Application.Json]
-
-
-
-    // AS json responses
+    val service = Bootstrap
+      .serve[Application.Json](api)
+      .serve[Zip](fileapi)
+      .toService
 
     val server =
       Http.server
         .withStatsReceiver(statsReceiver)
-        .serve(s":${port()}", api.toServiceAs[Application.Json])
-
-
-    // As zip file response
-
-//    val server1 =
-//      Http.server
-//        .withStatsReceiver(statsReceiver)
-//        .serve(s":${port()}", fileapi.toServiceAs[Zip])
-//    closeOnExit(server)
-//
-//    closeOnExit(server1)
+        .serve(s":${port()}", service)
 
     Await.ready(adminHttpServer)
   }
